@@ -1,0 +1,15 @@
+name: segmentations-realtime
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - --extra-index-url https://download.pytorch.org/whl/cu124
+    - torch==2.6.0+cu124
+    - torchvision==0.21.0+cu124
+    - ultralytics>=8.4.0
+    - opencv-python>=4.8.0
+    - mediapipe>=0.10.0
+    - transformers>=4.49.0
+    - "SAM-2 @ git+https://github.com/facebookresearch/sam2.git@2b90b9f5ceec907a1c18123530e92e794ad901a4"

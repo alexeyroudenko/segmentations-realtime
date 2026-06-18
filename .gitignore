@@ -1,0 +1,17 @@
+# Downloaded weights and caches
+models/
+
+# Runtime artifacts
+screenshot_*.png
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
