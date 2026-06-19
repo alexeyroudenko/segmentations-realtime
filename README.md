@@ -41,7 +41,7 @@ python segmentations-realtime.py 1 --backend sam2 --width 512 --points 6
 |-----|--------|
 | `q` | Quit |
 | `Space` | Pause |
-| `s` | Screenshot (`screenshot_0000.png`, …) |
+| `s` | Screenshot (`YYYY-MM-DD-HH-MM-segment-<backend>.jpg`, quality 80%) |
 | `[` / `]` | Previous / next backend |
 
 ## Backends

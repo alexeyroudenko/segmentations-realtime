@@ -2,7 +2,7 @@
 models/
 
 # Runtime artifacts
-screenshot_*.png
+*-segment-*.jpg
 
 # Python
 __pycache__/

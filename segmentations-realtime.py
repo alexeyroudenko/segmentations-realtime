@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import argparse
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -559,7 +560,6 @@ def main():
     fps = 0.0
     frame_count = 0
     iter_count = 0
-    screenshot_idx = 0
     every = max(1, args.every)
 
     print("Running... press 'q' to quit")
@@ -594,10 +594,10 @@ def main():
             paused = not paused
             print("Paused" if paused else "Resumed")
         elif key == ord("s"):
-            fname = f"screenshot_{screenshot_idx:04d}.png"
-            cv2.imwrite(fname, display)
+            ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
+            fname = f"{ts}-segment-{cur_backend}.jpg"
+            cv2.imwrite(fname, display, [cv2.IMWRITE_JPEG_QUALITY, 80])
             print(f"Saved {fname}")
-            screenshot_idx += 1
         elif key in (ord("["), ord("]")):
             backend_idx = (backend_idx + (1 if key == ord("]") else -1)) % len(backend_names)
             new_backend = backend_names[backend_idx]
