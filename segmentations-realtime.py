@@ -10,6 +10,7 @@
 #   fastsam  - FastSAM (ultralytics): class-agnostic "segment everything", fast
 #   sam2     - SAM2 AutomaticMaskGenerator: class-agnostic "everything", slow but detailed
 #   clothing - YOLOv8n clothing detection (Clothing, Shoes, Bags, Accessories)
+#   rfdetr   - RF-DETR instance segmentation (Roboflow): COCO classes + masks
 #
 # Common keys:  q quit | space pause | s screenshot | [ ] prev/next backend
 
@@ -32,6 +33,7 @@ MODELS_DIR = ROOT / "models"
 def setup_models_dir():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("HF_HOME", str(MODELS_DIR / "huggingface"))
+    os.environ.setdefault("RF_HOME", str(MODELS_DIR / "rfdetr"))
     try:
         from ultralytics import settings
         settings.update({"weights_dir": str(MODELS_DIR)})
@@ -119,6 +121,70 @@ class YoloSeg(Segmenter):
                 box=(x1, y1, x2, y2),
                 score=float(b.conf[0]),
                 label=self.names[int(b.cls[0])],
+            ))
+        return out
+
+
+class RfDetrSeg(Segmenter):
+    """RF-DETR instance segmentation (Roboflow). COCO classes + masks."""
+
+    name = "rfdetr"
+
+    def __init__(self, weights="small", imgsz=640, conf=0.25):
+        from rfdetr import (
+            RFDETR,
+            RFDETRSegLarge,
+            RFDETRSegMedium,
+            RFDETRSegNano,
+            RFDETRSegSmall,
+        )
+
+        variants = {
+            "nano": RFDETRSegNano, "n": RFDETRSegNano,
+            "small": RFDETRSegSmall, "s": RFDETRSegSmall,
+            "medium": RFDETRSegMedium, "m": RFDETRSegMedium,
+            "large": RFDETRSegLarge, "l": RFDETRSegLarge,
+        }
+
+        w = (weights or "small").lower().removeprefix("seg-")
+        if w.endswith((".pth", ".pt", ".ckpt")):
+            self.model = RFDETR.from_checkpoint(resolve_weights(weights, weights))
+        else:
+            cls = variants.get(w)
+            if cls is None:
+                raise ValueError(f"Unknown rfdetr variant: {weights!r} "
+                                 f"(choose: {', '.join(sorted(set(variants)))})")
+            self.model = cls()
+
+        self.imgsz = imgsz
+        self.conf = conf
+
+    def process(self, frame_bgr):
+        rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        kwargs = {"threshold": self.conf}
+        if self.imgsz:
+            kwargs["shape"] = (self.imgsz, self.imgsz)
+
+        try:
+            detections = self.model.predict(rgb, **kwargs)
+        except (ValueError, RuntimeError):
+            kwargs.pop("shape", None)
+            detections = self.model.predict(rgb, **kwargs)
+
+        out = []
+        if len(detections) == 0 or detections.mask is None:
+            return out
+
+        names = self.model.class_names
+        for i in range(len(detections)):
+            x1, y1, x2, y2 = (int(v) for v in detections.xyxy[i])
+            cid = int(detections.class_id[i])
+            label = names[cid] if cid < len(names) else f"class{cid}"
+            out.append(Instance(
+                mask=detections.mask[i].astype(np.uint8),
+                box=(x1, y1, x2, y2),
+                score=float(detections.confidence[i]),
+                label=label,
             ))
         return out
 
@@ -413,6 +479,7 @@ BACKENDS = {
     "yolo": lambda a: YoloSeg(a.weights or "yolo11n-seg.pt", a.imgsz, a.conf),
     "clothing": lambda a: ClothingYolo(a.weights, a.imgsz, a.conf),
     "fastsam": lambda a: FastSamEverything(a.weights or "FastSAM-s.pt", a.imgsz, a.conf),
+    "rfdetr": lambda a: RfDetrSeg(a.weights or "small", a.imgsz, a.conf),
     "sam2": lambda a: Sam2Everything(a.weights or "facebook/sam2-hiera-tiny",
                                      a.points, a.width),
     "mediapipe": lambda a: MediaPipeSeg(a.weights),
@@ -503,9 +570,9 @@ def parse_args():
     p.add_argument("--weights", default=None,
                    help="override model weights / HF id for the chosen backend")
     p.add_argument("--imgsz", type=int, default=640,
-                   help="inference size for yolo/fastsam/clothing (default: 640)")
+                   help="inference size for yolo/fastsam/clothing/rfdetr (default: 640)")
     p.add_argument("--conf", type=float, default=0.25,
-                   help="confidence threshold for yolo/fastsam/clothing (default: 0.25)")
+                   help="confidence threshold for yolo/fastsam/clothing/rfdetr (default: 0.25)")
     p.add_argument("--points", type=int, default=8,
                    help="sam2 points_per_side; lower = faster (default: 8)")
     p.add_argument("--width", type=int, default=512,
